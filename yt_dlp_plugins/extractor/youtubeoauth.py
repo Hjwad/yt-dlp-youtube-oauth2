@@ -1,5 +1,3 @@
-import os
-import logging
 import datetime
 import json
 import time
@@ -13,9 +11,6 @@ from yt_dlp.extractor.common import InfoExtractor
 from yt_dlp.extractor.youtube import YoutubeBaseInfoExtractor
 import importlib
 import inspect
-
-
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 _EXCLUDED_IES = ('YoutubeBaseInfoExtractor', 'YoutubeTabBaseInfoExtractor')
 
@@ -40,15 +35,12 @@ class YouTubeOAuth2Handler(InfoExtractor):
             downloader.write_debug(f'YouTube OAuth2 plugin version {__VERSION__}', only_once=True)
 
     def store_token(self, token_data):
-        logging.info("Store this token data manually in your environment variable (AUTH_TOKEN):")
-        logging.info(json.dumps(token_data, indent=4))
-        
+        self.cache.store('youtube-oauth2', 'token_data', token_data)
         self._TOKEN_DATA = token_data
 
     def get_token(self):
-        token_data = os.getenv('AUTH_TOKEN')
-        if token_data:
-            self._TOKEN_DATA = json.loads(token_data)
+        if not getattr(self, '_TOKEN_DATA', None):
+            self._TOKEN_DATA = self.cache.load('youtube-oauth2', 'token_data')
         return self._TOKEN_DATA
 
     def validate_token_data(self, token_data):
