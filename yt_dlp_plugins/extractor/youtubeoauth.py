@@ -1,4 +1,6 @@
 import datetime
+import os
+import logging
 import json
 import time
 import urllib.parse
@@ -35,13 +37,17 @@ class YouTubeOAuth2Handler(InfoExtractor):
             downloader.write_debug(f'YouTube OAuth2 plugin version {__VERSION__}', only_once=True)
 
     def store_token(self, token_data):
-        self.cache.store('youtube-oauth2', 'token_data', token_data)
+        logging.info("Store this token data manually in your environment variable (AUTH_TOKEN):")
+        logging.info(json.dumps(token_data, indent=4))
+
         self._TOKEN_DATA = token_data
 
     def get_token(self):
-        if not getattr(self, '_TOKEN_DATA', None):
-            self._TOKEN_DATA = self.cache.load('youtube-oauth2', 'token_data')
+        token_data = os.getenv('AUTH_TOKEN')
+        if token_data:
+            self._TOKEN_DATA = json.loads(token_data)
         return self._TOKEN_DATA
+
 
     def validate_token_data(self, token_data):
         return all(key in token_data for key in ('access_token', 'expires', 'refresh_token', 'token_type'))
