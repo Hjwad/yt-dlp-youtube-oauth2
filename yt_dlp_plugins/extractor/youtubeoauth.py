@@ -14,6 +14,9 @@ from yt_dlp.extractor.youtube import YoutubeBaseInfoExtractor
 import importlib
 import inspect
 
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
 _EXCLUDED_IES = ('YoutubeBaseInfoExtractor', 'YoutubeTabBaseInfoExtractor')
 
 YOUTUBE_IES = filter(
