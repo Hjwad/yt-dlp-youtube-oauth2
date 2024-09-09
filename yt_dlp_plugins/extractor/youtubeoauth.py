@@ -1,34 +1,44 @@
 import os
-import json
 import logging
 import datetime
+import json
+import time
 import urllib.parse
 import uuid
+
+import yt_dlp.networking
 from yt_dlp.utils import ExtractorError
 from yt_dlp.utils.traversal import traverse_obj
 from yt_dlp.extractor.common import InfoExtractor
 from yt_dlp.extractor.youtube import YoutubeBaseInfoExtractor
-import yt_dlp.networking
+import importlib
+import inspect
+
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+_EXCLUDED_IES = ('YoutubeBaseInfoExtractor', 'YoutubeTabBaseInfoExtractor')
 
 YOUTUBE_IES = filter(
     lambda member: issubclass(member[1], YoutubeBaseInfoExtractor) and member[0] not in _EXCLUDED_IES,
     inspect.getmembers(importlib.import_module('yt_dlp.extractor.youtube'), inspect.isclass)
 )
 
+__VERSION__ = '2024.08.31.1'
+
+# YouTube TV (TVHTML5)
+_CLIENT_ID = '861556708454-d6dlm3lh05idd8npek18k6be8ba3oc68.apps.googleusercontent.com'
+_CLIENT_SECRET = 'SboVhoG9s0rNafixCSGGKXAT'
+_SCOPES = 'http://gdata.youtube.com https://www.googleapis.com/auth/youtube'
+
+
 class YouTubeOAuth2Handler(InfoExtractor):
-    
-    __VERSION__ = '2024.08.31.1'
-    _CLIENT_ID = '861556708454-d6dlm3lh05idd8npek18k6be8ba3oc68.apps.googleusercontent.com'
-    _CLIENT_SECRET = 'SboVhoG9s0rNafixCSGGKXAT'
-    _SCOPES = 'http://gdata.youtube.com https://www.googleapis.com/auth/youtube'
-    
+
     def set_downloader(self, downloader):
         super().set_downloader(downloader)
         if downloader:
-            downloader.write_debug(f'YouTube OAuth2 plugin version {self.__VERSION__}', only_once=True)
-    
+            downloader.write_debug(f'YouTube OAuth2 plugin version {__VERSION__}', only_once=True)
+
     def store_token(self, token_data):
         logging.info("Store this token data manually in your environment variable (AUTH_TOKEN):")
         logging.info(json.dumps(token_data, indent=4))
@@ -63,18 +73,23 @@ class YouTubeOAuth2Handler(InfoExtractor):
         return token_data
 
     def handle_oauth(self, request: yt_dlp.networking.Request):
+
         if not urllib.parse.urlparse(request.url).netloc.endswith('youtube.com'):
             return
 
         token_data = self.initialize_oauth()
+        # These are only require for cookies and interfere with OAuth2
         request.headers.pop('X-Goog-PageId', None)
         request.headers.pop('X-Goog-AuthUser', None)
+        # In case user tries to use cookies at the same time
         if 'Authorization' in request.headers:
             self.report_warning(
                 'Youtube cookies have been provided, but OAuth2 is being used.'
                 ' If you encounter problems, stop providing Youtube cookies to yt-dlp.')
             request.headers.pop('Authorization', None)
             request.headers.pop('X-Origin', None)
+
+        # Not even used anymore, should be removed from core...
         request.headers.pop('X-Youtube-Identity-Token', None)
 
         authorization_header = {'Authorization': f'{token_data["token_type"]} {token_data["access_token"]}'}
@@ -86,13 +101,12 @@ class YouTubeOAuth2Handler(InfoExtractor):
             video_id='oauth2',
             note='Refreshing OAuth2 Token',
             data=json.dumps({
-                'client_id': self._CLIENT_ID,
-                'client_secret': self._CLIENT_SECRET,
+                'client_id': _CLIENT_ID,
+                'client_secret': _CLIENT_SECRET,
                 'refresh_token': refresh_token,
                 'grant_type': 'refresh_token'
             }).encode(),
             headers={'Content-Type': 'application/json', '__youtube_oauth__': True})
-        
         error = traverse_obj(token_response, 'error')
         if error:
             self.report_warning(f'Failed to refresh access token: {error}. Restarting authorization flow')
@@ -111,8 +125,8 @@ class YouTubeOAuth2Handler(InfoExtractor):
             video_id='oauth2',
             note='Initializing OAuth2 Authorization Flow',
             data=json.dumps({
-                'client_id': self._CLIENT_ID,
-                'scope': self._SCOPES,
+                'client_id': _CLIENT_ID,
+                'scope': _SCOPES,
                 'device_id': uuid.uuid4().hex,
                 'device_model': 'ytlr::'
             }).encode(),
@@ -128,8 +142,8 @@ class YouTubeOAuth2Handler(InfoExtractor):
                 video_id='oauth2',
                 note=False,
                 data=json.dumps({
-                    'client_id': self._CLIENT_ID,
-                    'client_secret': self._CLIENT_SECRET,
+                    'client_id': _CLIENT_ID,
+                    'client_secret': _CLIENT_SECRET,
                     'code': code_response['device_code'],
                     'grant_type': 'http://oauth.net/grant_type/device/1.0'
                 }).encode(),
@@ -155,13 +169,14 @@ class YouTubeOAuth2Handler(InfoExtractor):
             }
 
 
-
 for _, ie in YOUTUBE_IES:
     class _YouTubeOAuth(ie, YouTubeOAuth2Handler, plugin_name='oauth2'):
         _NETRC_MACHINE = 'youtube'
         _use_oauth2 = False
 
+        # Remove any default *_creator clients as they do not support oauth
         _OAUTH2_UNSUPPORTED_CLIENTS = ('web_creator', 'android_creator', 'ios_creator')
+        # Additional clients to add when using oauth
         _OAUTH2_CLIENTS = ('mweb', )
 
         def _perform_login(self, username, password):
