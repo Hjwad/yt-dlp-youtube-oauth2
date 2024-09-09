@@ -11,6 +11,7 @@ from yt_dlp.extractor.common import InfoExtractor
 from yt_dlp.extractor.youtube import YoutubeBaseInfoExtractor
 import importlib
 import inspect
+from YukkiMusic.core.mongo import pymongodb
 
 _EXCLUDED_IES = ('YoutubeBaseInfoExtractor', 'YoutubeTabBaseInfoExtractor')
 
@@ -21,7 +22,6 @@ YOUTUBE_IES = filter(
 
 __VERSION__ = '2024.08.31.1'
 
-# YouTube TV (TVHTML5)
 _CLIENT_ID = '861556708454-d6dlm3lh05idd8npek18k6be8ba3oc68.apps.googleusercontent.com'
 _CLIENT_SECRET = 'SboVhoG9s0rNafixCSGGKXAT'
 _SCOPES = 'http://gdata.youtube.com https://www.googleapis.com/auth/youtube'
@@ -35,12 +35,17 @@ class YouTubeOAuth2Handler(InfoExtractor):
             downloader.write_debug(f'YouTube OAuth2 plugin version {__VERSION__}', only_once=True)
 
     def store_token(self, token_data):
-        self.cache.store('youtube-oauth2', 'token_data', token_data)
+        pymongodb.ytdlptokendb.update_one(
+            {"_id": "youtube_oauth_token"},
+            {"$set": {"token_data": token_data}},
+            upsert=True
+        )
         self._TOKEN_DATA = token_data
 
     def get_token(self):
-        if not getattr(self, '_TOKEN_DATA', None):
-            self._TOKEN_DATA = self.cache.load('youtube-oauth2', 'token_data')
+        token_record = pymongodb.ytdlptokendb.find_one({"_id": "youtube_oauth_token"})
+        if token_record:
+            self._TOKEN_DATA = token_record['token_data']
         return self._TOKEN_DATA
 
     def validate_token_data(self, token_data):
@@ -70,18 +75,14 @@ class YouTubeOAuth2Handler(InfoExtractor):
             return
 
         token_data = self.initialize_oauth()
-        # These are only require for cookies and interfere with OAuth2
         request.headers.pop('X-Goog-PageId', None)
         request.headers.pop('X-Goog-AuthUser', None)
-        # In case user tries to use cookies at the same time
         if 'Authorization' in request.headers:
             self.report_warning(
                 'Youtube cookies have been provided, but OAuth2 is being used.'
                 ' If you encounter problems, stop providing Youtube cookies to yt-dlp.')
             request.headers.pop('Authorization', None)
             request.headers.pop('X-Origin', None)
-
-        # Not even used anymore, should be removed from core...
         request.headers.pop('X-Youtube-Identity-Token', None)
 
         authorization_header = {'Authorization': f'{token_data["token_type"]} {token_data["access_token"]}'}
@@ -166,9 +167,7 @@ for _, ie in YOUTUBE_IES:
         _NETRC_MACHINE = 'youtube'
         _use_oauth2 = False
 
-        # Remove any default *_creator clients as they do not support oauth
         _OAUTH2_UNSUPPORTED_CLIENTS = ('web_creator', 'android_creator', 'ios_creator')
-        # Additional clients to add when using oauth
         _OAUTH2_CLIENTS = ('mweb', )
 
         def _perform_login(self, username, password):
