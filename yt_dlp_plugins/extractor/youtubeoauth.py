@@ -1,51 +1,39 @@
-import datetime
+import os
 import json
-import time
+import logging
+import datetime
 import urllib.parse
 import uuid
-
-import yt_dlp.networking
 from yt_dlp.utils import ExtractorError
 from yt_dlp.utils.traversal import traverse_obj
 from yt_dlp.extractor.common import InfoExtractor
 from yt_dlp.extractor.youtube import YoutubeBaseInfoExtractor
-import importlib
-import inspect
-from YukkiMusic.core.mongo import pymongodb
+import yt_dlp.networking
 
-_EXCLUDED_IES = ('YoutubeBaseInfoExtractor', 'YoutubeTabBaseInfoExtractor')
-
-YOUTUBE_IES = filter(
-    lambda member: issubclass(member[1], YoutubeBaseInfoExtractor) and member[0] not in _EXCLUDED_IES,
-    inspect.getmembers(importlib.import_module('yt_dlp.extractor.youtube'), inspect.isclass)
-)
-
-__VERSION__ = '2024.08.31.1'
-
-_CLIENT_ID = '861556708454-d6dlm3lh05idd8npek18k6be8ba3oc68.apps.googleusercontent.com'
-_CLIENT_SECRET = 'SboVhoG9s0rNafixCSGGKXAT'
-_SCOPES = 'http://gdata.youtube.com https://www.googleapis.com/auth/youtube'
-
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class YouTubeOAuth2Handler(InfoExtractor):
-
+    
+    __VERSION__ = '2024.08.31.1'
+    _CLIENT_ID = '861556708454-d6dlm3lh05idd8npek18k6be8ba3oc68.apps.googleusercontent.com'
+    _CLIENT_SECRET = 'SboVhoG9s0rNafixCSGGKXAT'
+    _SCOPES = 'http://gdata.youtube.com https://www.googleapis.com/auth/youtube'
+    
     def set_downloader(self, downloader):
         super().set_downloader(downloader)
         if downloader:
-            downloader.write_debug(f'YouTube OAuth2 plugin version {__VERSION__}', only_once=True)
-
+            downloader.write_debug(f'YouTube OAuth2 plugin version {self.__VERSION__}', only_once=True)
+    
     def store_token(self, token_data):
-        pymongodb.ytdlptokendb.update_one(
-            {"_id": "youtube_oauth_token"},
-            {"$set": {"token_data": token_data}},
-            upsert=True
-        )
+        logging.info("Store this token data manually in your environment variable (AUTH_TOKEN):")
+        logging.info(json.dumps(token_data, indent=4))
+        
         self._TOKEN_DATA = token_data
 
     def get_token(self):
-        token_record = pymongodb.ytdlptokendb.find_one({"_id": "youtube_oauth_token"})
-        if token_record:
-            self._TOKEN_DATA = token_record['token_data']
+        token_data = os.getenv('AUTH_TOKEN')
+        if token_data:
+            self._TOKEN_DATA = json.loads(token_data)
         return self._TOKEN_DATA
 
     def validate_token_data(self, token_data):
@@ -70,7 +58,6 @@ class YouTubeOAuth2Handler(InfoExtractor):
         return token_data
 
     def handle_oauth(self, request: yt_dlp.networking.Request):
-
         if not urllib.parse.urlparse(request.url).netloc.endswith('youtube.com'):
             return
 
@@ -94,12 +81,13 @@ class YouTubeOAuth2Handler(InfoExtractor):
             video_id='oauth2',
             note='Refreshing OAuth2 Token',
             data=json.dumps({
-                'client_id': _CLIENT_ID,
-                'client_secret': _CLIENT_SECRET,
+                'client_id': self._CLIENT_ID,
+                'client_secret': self._CLIENT_SECRET,
                 'refresh_token': refresh_token,
                 'grant_type': 'refresh_token'
             }).encode(),
             headers={'Content-Type': 'application/json', '__youtube_oauth__': True})
+        
         error = traverse_obj(token_response, 'error')
         if error:
             self.report_warning(f'Failed to refresh access token: {error}. Restarting authorization flow')
@@ -118,8 +106,8 @@ class YouTubeOAuth2Handler(InfoExtractor):
             video_id='oauth2',
             note='Initializing OAuth2 Authorization Flow',
             data=json.dumps({
-                'client_id': _CLIENT_ID,
-                'scope': _SCOPES,
+                'client_id': self._CLIENT_ID,
+                'scope': self._SCOPES,
                 'device_id': uuid.uuid4().hex,
                 'device_model': 'ytlr::'
             }).encode(),
@@ -135,8 +123,8 @@ class YouTubeOAuth2Handler(InfoExtractor):
                 video_id='oauth2',
                 note=False,
                 data=json.dumps({
-                    'client_id': _CLIENT_ID,
-                    'client_secret': _CLIENT_SECRET,
+                    'client_id': self._CLIENT_ID,
+                    'client_secret': self._CLIENT_SECRET,
                     'code': code_response['device_code'],
                     'grant_type': 'http://oauth.net/grant_type/device/1.0'
                 }).encode(),
@@ -160,6 +148,7 @@ class YouTubeOAuth2Handler(InfoExtractor):
                 'refresh_token': token_response['refresh_token'],
                 'token_type': token_response['token_type']
             }
+
 
 
 for _, ie in YOUTUBE_IES:
