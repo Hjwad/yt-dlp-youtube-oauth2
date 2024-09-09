@@ -12,6 +12,11 @@ import yt_dlp.networking
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+YOUTUBE_IES = filter(
+    lambda member: issubclass(member[1], YoutubeBaseInfoExtractor) and member[0] not in _EXCLUDED_IES,
+    inspect.getmembers(importlib.import_module('yt_dlp.extractor.youtube'), inspect.isclass)
+)
+
 class YouTubeOAuth2Handler(InfoExtractor):
     
     __VERSION__ = '2024.08.31.1'
