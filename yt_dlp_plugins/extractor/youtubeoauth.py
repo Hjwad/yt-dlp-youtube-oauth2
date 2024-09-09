@@ -36,18 +36,23 @@ class YouTubeOAuth2Handler(InfoExtractor):
         if downloader:
             downloader.write_debug(f'YouTube OAuth2 plugin version {__VERSION__}', only_once=True)
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._TOKEN_DATA = None
+
     def store_token(self, token_data):
         logging.info("Store this token data manually in your environment variable (AUTH_TOKEN):")
         logging.info(json.dumps(token_data, indent=4))
-
         self._TOKEN_DATA = token_data
 
     def get_token(self):
+        if self._TOKEN_DATA:
+            return self._TOKEN_DATA
+
         token_data = os.getenv('AUTH_TOKEN')
         if token_data:
             self._TOKEN_DATA = json.loads(token_data)
         return self._TOKEN_DATA
-
 
     def validate_token_data(self, token_data):
         return all(key in token_data for key in ('access_token', 'expires', 'refresh_token', 'token_type'))
@@ -76,7 +81,7 @@ class YouTubeOAuth2Handler(InfoExtractor):
             return
 
         token_data = self.initialize_oauth()
-        # These are only require for cookies and interfere with OAuth2
+        # These are only required for cookies and interfere with OAuth2
         request.headers.pop('X-Goog-PageId', None)
         request.headers.pop('X-Goog-AuthUser', None)
         # In case user tries to use cookies at the same time
