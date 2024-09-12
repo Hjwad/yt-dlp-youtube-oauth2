@@ -43,8 +43,9 @@ class YouTubeOAuth2Handler(InfoExtractor):
         super().__init__(*args, **kwargs)
         self._TOKEN_DATA = None
 
-    def store_token(self, token_data):
-        logging.info(f"Store this token data manually in your environment variable (AUTH_TOKEN): {json.dumps(token_data, indent=4)}")
+    def store_token(self, token_data, log_new_token=False):
+        if log_new_token:
+            logging.info(f"Store this token data manually in your environment variable (AUTH_TOKEN): {json.dumps(token_data, indent=4)}")
 
         self._TOKEN_DATA = token_data
 
@@ -69,14 +70,14 @@ class YouTubeOAuth2Handler(InfoExtractor):
 
         if not token_data:
             token_data = self.authorize()
-            self.store_token(token_data)
+            self.store_token(token_data, log_new_token=True)
 
-        if token_data['expires'] < datetime.datetime.now(datetime.timezone.utc).timestamp() + 60:
+        elif token_data['expires'] < datetime.datetime.now(datetime.timezone.utc).timestamp() + 60:
             self.to_screen('Access token expired, refreshing')
             token_data = self.refresh_token(token_data['refresh_token'])
-            self.store_token(token_data)
-
+            self.store_token(token_data, log_new_token=False)
         return token_data
+
 
     def handle_oauth(self, request: yt_dlp.networking.Request):
 
