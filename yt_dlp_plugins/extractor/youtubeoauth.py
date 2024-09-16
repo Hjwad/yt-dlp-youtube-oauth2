@@ -90,10 +90,6 @@ class TokenManager:
         return None
  
 tkn = TokenManager()
- '''token_manager.store_token(token_data)
-    
-    token = token_manager.get_token()'''
-
 
 class YouTubeOAuth2Handler(InfoExtractor):
 
