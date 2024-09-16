@@ -46,7 +46,7 @@ class YouTubeOAuth2Handler(InfoExtractor):
     def store_token(self, token_data, log_new_token=False):
         if log_new_token:
             logging.info(f"Store this token data manually in your environment variable (AUTH_TOKEN): {json.dumps(token_data, indent=4)}")
-            os.environ["AUTH_TOKEN"] = json.dumps(token_data, indent=4)
+        os.environ["AUTH_TOKEN"] = json.dumps(token_data, indent=4)
 
         self._TOKEN_DATA = token_data
 
