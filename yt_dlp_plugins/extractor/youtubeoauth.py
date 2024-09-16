@@ -14,7 +14,6 @@ from yt_dlp.extractor.youtube import YoutubeBaseInfoExtractor
 import importlib
 import inspect
 
-
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 _EXCLUDED_IES = ('YoutubeBaseInfoExtractor', 'YoutubeTabBaseInfoExtractor')
@@ -31,7 +30,6 @@ _CLIENT_ID = '861556708454-d6dlm3lh05idd8npek18k6be8ba3oc68.apps.googleuserconte
 _CLIENT_SECRET = 'SboVhoG9s0rNafixCSGGKXAT'
 _SCOPES = 'http://gdata.youtube.com https://www.googleapis.com/auth/youtube'
 
-
 class YouTubeOAuth2Handler(InfoExtractor):
 
     def set_downloader(self, downloader):
@@ -47,13 +45,11 @@ class YouTubeOAuth2Handler(InfoExtractor):
         if log_new_token:
             logging.info(f"Store this token data manually in your environment variable (AUTH_TOKEN): {json.dumps(token_data, indent=4)}")
         os.environ["AUTH_TOKEN"] = json.dumps(token_data, indent=4)
-
         self._TOKEN_DATA = token_data
 
     def get_token(self):
         if self._TOKEN_DATA:
             return self._TOKEN_DATA
-
         token_data = os.getenv('AUTH_TOKEN')
         if token_data:
             self._TOKEN_DATA = json.loads(token_data)
@@ -64,42 +60,31 @@ class YouTubeOAuth2Handler(InfoExtractor):
 
     def initialize_oauth(self):
         token_data = self.get_token()
-
         if token_data and not self.validate_token_data(token_data):
             self.report_warning('Invalid cached OAuth2 token data')
             token_data = None
-
         if not token_data:
             token_data = self.authorize()
             self.store_token(token_data, log_new_token=True)
-
         elif token_data['expires'] < datetime.datetime.now(datetime.timezone.utc).timestamp() + 60:
             self.to_screen('Access token expired, refreshing')
             token_data = self.refresh_token(token_data['refresh_token'])
             self.store_token(token_data, log_new_token=False)
         return token_data
 
-
     def handle_oauth(self, request: yt_dlp.networking.Request):
-
         if not urllib.parse.urlparse(request.url).netloc.endswith('youtube.com'):
             return
-
         token_data = self.initialize_oauth()
-        # These are only required for cookies and interfere with OAuth2
         request.headers.pop('X-Goog-PageId', None)
         request.headers.pop('X-Goog-AuthUser', None)
-        # In case user tries to use cookies at the same time
         if 'Authorization' in request.headers:
             self.report_warning(
                 'Youtube cookies have been provided, but OAuth2 is being used.'
                 ' If you encounter problems, stop providing Youtube cookies to yt-dlp.')
             request.headers.pop('Authorization', None)
             request.headers.pop('X-Origin', None)
-
-        # Not even used anymore, should be removed from core...
         request.headers.pop('X-Youtube-Identity-Token', None)
-
         authorization_header = {'Authorization': f'{token_data["token_type"]} {token_data["access_token"]}'}
         request.headers.update(authorization_header)
 
@@ -119,7 +104,6 @@ class YouTubeOAuth2Handler(InfoExtractor):
         if error:
             self.report_warning(f'Failed to refresh access token: {error}. Restarting authorization flow')
             return self.authorize()
-
         return {
             'access_token': token_response['access_token'],
             'expires': datetime.datetime.now(datetime.timezone.utc).timestamp() + token_response['expires_in'],
@@ -176,15 +160,11 @@ class YouTubeOAuth2Handler(InfoExtractor):
                 'token_type': token_response['token_type']
             }
 
-
 for _, ie in YOUTUBE_IES:
     class _YouTubeOAuth(ie, YouTubeOAuth2Handler, plugin_name='oauth2'):
         _NETRC_MACHINE = 'youtube'
         _use_oauth2 = False
-
-        # Remove any default *_creator clients as they do not support oauth
         _OAUTH2_UNSUPPORTED_CLIENTS = ('web_creator', 'android_creator', 'ios_creator')
-        # Additional clients to add when using oauth
         _OAUTH2_CLIENTS = ('mweb', )
 
         def _perform_login(self, username, password):
@@ -195,7 +175,6 @@ for _, ie in YOUTUBE_IES:
                     c for c in getattr(self, '_DEFAULT_CLIENTS', []) if c not in self._OAUTH2_UNSUPPORTED_CLIENTS
                 ) + self._OAUTH2_CLIENTS
                 return
-
             return super()._perform_login(username, password)
 
         def _create_request(self, *args, **kwargs):
