@@ -3,7 +3,7 @@ import json
 import time
 import urllib.parse
 import uuid
-import os  # Import os for environment variable operations
+import os
 
 import yt_dlp.networking
 from yt_dlp.utils import ExtractorError
@@ -22,7 +22,6 @@ YOUTUBE_IES = filter(
 
 __VERSION__ = '2024.09.14'
 
-# YouTube TV (TVHTML5)
 _CLIENT_ID = '861556708454-d6dlm3lh05idd8npek18k6be8ba3oc68.apps.googleusercontent.com'
 _CLIENT_SECRET = 'SboVhoG9s0rNafixCSGGKXAT'
 _SCOPES = 'http://gdata.youtube.com https://www.googleapis.com/auth/youtube'
@@ -36,15 +35,16 @@ class YouTubeOAuth2Handler(InfoExtractor):
             downloader.write_debug(f'YouTube OAuth2 plugin version {__VERSION__}', only_once=True)
 
     def store_token(self, token_data):
-
+        self._TOKEN_DATA = token_data
         os.environ["AUTH_TOKEN"] = json.dumps(token_data)
 
     def get_token(self):
-
-        token_data = os.getenv("AUTH_TOKEN")
-        if token_data:
-            return json.loads(token_data)
-        return None
+        token_data = self._TOKEN_DATA
+        if not token_data:
+            token_data = os.environ.get("AUTH_TOKEN")
+            if token_data:
+                self._TOKEN_DATA = json.loads(token_data)
+        return self._TOKEN_DATA
 
     def validate_token_data(self, token_data):
         return all(key in token_data for key in ('access_token', 'expires', 'refresh_token', 'token_type'))
@@ -53,7 +53,6 @@ class YouTubeOAuth2Handler(InfoExtractor):
         token_data = self.get_token()
 
         if token_data and not self.validate_token_data(token_data):
-            self.report_warning('Invalid cached OAuth2 token data')
             token_data = None
 
         if not token_data:
@@ -61,7 +60,6 @@ class YouTubeOAuth2Handler(InfoExtractor):
             self.store_token(token_data)
 
         if token_data['expires'] < datetime.datetime.now(datetime.timezone.utc).timestamp() + 60:
-            self.to_screen('Access token expired, refreshing')
             token_data = self.refresh_token(token_data['refresh_token'])
             self.store_token(token_data)
 
@@ -73,18 +71,11 @@ class YouTubeOAuth2Handler(InfoExtractor):
             return
 
         token_data = self.initialize_oauth()
-        # These are only require for cookies and interfere with OAuth2
         request.headers.pop('X-Goog-PageId', None)
         request.headers.pop('X-Goog-AuthUser', None)
-        # In case user tries to use cookies at the same time
         if 'Authorization' in request.headers:
-            self.report_warning(
-                'Youtube cookies have been provided, but OAuth2 is being used.'
-                ' If you encounter problems, stop providing Youtube cookies to yt-dlp.')
             request.headers.pop('Authorization', None)
             request.headers.pop('X-Origin', None)
-
-        # Not even used anymore, should be removed from core...
         request.headers.pop('X-Youtube-Identity-Token', None)
 
         authorization_header = {'Authorization': f'{token_data["token_type"]} {token_data["access_token"]}'}
@@ -104,7 +95,6 @@ class YouTubeOAuth2Handler(InfoExtractor):
             headers={'Content-Type': 'application/json', '__youtube_oauth__': True})
         error = traverse_obj(token_response, 'error')
         if error:
-            self.report_warning(f'Failed to refresh access token: {error}. Restarting authorization flow')
             return self.authorize()
 
         return {
@@ -129,7 +119,7 @@ class YouTubeOAuth2Handler(InfoExtractor):
 
         verification_url = code_response['verification_url']
         user_code = code_response['user_code']
-        self.to_screen(f'To give yt-dlp access to your account, go to  {verification_url}  and enter code  {user_code}')
+        self.to_screen(f'To give yt-dlp access to your account, go to {verification_url} and enter code {user_code}')
 
         while True:
             token_response = self._download_json(
@@ -150,12 +140,10 @@ class YouTubeOAuth2Handler(InfoExtractor):
                     time.sleep(code_response['interval'])
                     continue
                 elif error == 'expired_token':
-                    self.report_warning('The device code has expired, restarting authorization flow')
                     return self.authorize()
                 else:
                     raise ExtractorError(f'Unhandled OAuth2 Error: {error}')
 
-            self.to_screen('Authorization successful')
             return {
                 'access_token': token_response['access_token'],
                 'expires': datetime.datetime.now(datetime.timezone.utc).timestamp() + token_response['expires_in'],
@@ -169,9 +157,7 @@ for _, ie in YOUTUBE_IES:
         _NETRC_MACHINE = 'youtube'
         _use_oauth2 = False
 
-        # Remove any default *_creator clients as they do not support oauth
         _OAUTH2_UNSUPPORTED_CLIENTS = ('web_creator', 'android_creator', 'ios_creator')
-        # Additional clients to add when using oauth
         _OAUTH2_CLIENTS = ('mweb', )
 
         def _perform_login(self, username, password):
