@@ -53,6 +53,7 @@ class YouTubeOAuth2Handler(InfoExtractor):
         token_data = self.get_token()
 
         if token_data and not self.validate_token_data(token_data):
+            self.report_warning('Invalid cached OAuth2 token data')
             token_data = None
 
         if not token_data:
@@ -60,6 +61,7 @@ class YouTubeOAuth2Handler(InfoExtractor):
             self.store_token(token_data)
 
         if token_data['expires'] < datetime.datetime.now(datetime.timezone.utc).timestamp() + 60:
+            self.to_screen('Access token expired, refreshing')
             token_data = self.refresh_token(token_data['refresh_token'])
             self.store_token(token_data)
 
@@ -74,6 +76,9 @@ class YouTubeOAuth2Handler(InfoExtractor):
         request.headers.pop('X-Goog-PageId', None)
         request.headers.pop('X-Goog-AuthUser', None)
         if 'Authorization' in request.headers:
+            self.report_warning(
+                'Youtube cookies have been provided, but OAuth2 is being used.'
+                ' If you encounter problems, stop providing Youtube cookies to yt-dlp.')
             request.headers.pop('Authorization', None)
             request.headers.pop('X-Origin', None)
         request.headers.pop('X-Youtube-Identity-Token', None)
@@ -95,6 +100,7 @@ class YouTubeOAuth2Handler(InfoExtractor):
             headers={'Content-Type': 'application/json', '__youtube_oauth__': True})
         error = traverse_obj(token_response, 'error')
         if error:
+            self.report_warning(f'Failed to refresh access token: {error}. Restarting authorization flow')
             return self.authorize()
 
         return {
@@ -140,10 +146,12 @@ class YouTubeOAuth2Handler(InfoExtractor):
                     time.sleep(code_response['interval'])
                     continue
                 elif error == 'expired_token':
+                    self.report_warning('The device code has expired, restarting authorization flow')
                     return self.authorize()
                 else:
                     raise ExtractorError(f'Unhandled OAuth2 Error: {error}')
 
+            self.to_screen('Authorization successful')
             return {
                 'access_token': token_response['access_token'],
                 'expires': datetime.datetime.now(datetime.timezone.utc).timestamp() + token_response['expires_in'],
