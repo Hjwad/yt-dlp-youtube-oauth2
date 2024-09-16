@@ -24,7 +24,7 @@ YOUTUBE_IES = filter(
     inspect.getmembers(importlib.import_module('yt_dlp.extractor.youtube'), inspect.isclass)
 )
 
-__VERSION__ = '2024.08.31.1'
+__VERSION__ = '2024.09.14'
 
 # YouTube TV (TVHTML5)
 _CLIENT_ID = '861556708454-d6dlm3lh05idd8npek18k6be8ba3oc68.apps.googleusercontent.com'
@@ -193,6 +193,9 @@ for _, ie in YOUTUBE_IES:
                 self._DEFAULT_CLIENTS = tuple(
                     c for c in getattr(self, '_DEFAULT_CLIENTS', []) if c not in self._OAUTH2_UNSUPPORTED_CLIENTS
                 ) + self._OAUTH2_CLIENTS
+                return
+
+            return super()._perform_login(username, password)
 
         def _create_request(self, *args, **kwargs):
             request = super()._create_request(*args, **kwargs)
