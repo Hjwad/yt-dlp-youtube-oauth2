@@ -13,6 +13,11 @@ from yt_dlp.extractor.youtube import YoutubeBaseInfoExtractor
 import importlib
 import inspect
 
+import sqlite3
+import json
+import datetime
+
+
 _EXCLUDED_IES = ('YoutubeBaseInfoExtractor', 'YoutubeTabBaseInfoExtractor')
 
 YOUTUBE_IES = filter(
@@ -25,6 +30,68 @@ __VERSION__ = '2024.09.14'
 _CLIENT_ID = '861556708454-d6dlm3lh05idd8npek18k6be8ba3oc68.apps.googleusercontent.com'
 _CLIENT_SECRET = 'SboVhoG9s0rNafixCSGGKXAT'
 _SCOPES = 'http://gdata.youtube.com https://www.googleapis.com/auth/youtube'
+
+class TokenManager:
+    def __init__(self, db_file='config.db'):
+        self.db_file = db_file
+        self.create_table()
+
+    def create_table(self):
+        """Create the token table if it does not exist."""
+        conn = sqlite3.connect(self.db_file)
+        cursor = conn.cursor()
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS token (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                access_token TEXT NOT NULL,
+                expires INTEGER NOT NULL,
+                refresh_token TEXT NOT NULL,
+                token_type TEXT NOT NULL
+            )
+        ''')
+        conn.commit()
+        conn.close()
+
+    def store_token(self, token_data):
+        """Store or update token data in the database."""
+        conn = sqlite3.connect(self.db_file)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            INSERT INTO token (access_token, expires, refresh_token, token_type)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+            access_token=excluded.access_token,
+            expires=excluded.expires,
+            refresh_token=excluded.refresh_token,
+            token_type=excluded.token_type
+        ''', (token_data['access_token'], token_data['expires'], token_data['refresh_token'], token_data['token_type']))
+        
+        conn.commit()
+        conn.close()
+
+    def get_token(self):
+        """Retrieve the most recent token data from the database."""
+        conn = sqlite3.connect(self.db_file)
+        cursor = conn.cursor()
+        
+        cursor.execute('SELECT access_token, expires, refresh_token, token_type FROM token ORDER BY id DESC LIMIT 1')
+        row = cursor.fetchone()
+        
+        conn.close()
+        
+        if row:
+            return {
+                'access_token': row[0],
+                'expires': row[1],
+                'refresh_token': row[2],
+                'token_type': row[3]
+            }
+        return None
+ 
+    '''token_manager.store_token(token_data)
+    
+    token = token_manager.get_token()'''
 
 
 class YouTubeOAuth2Handler(InfoExtractor):
