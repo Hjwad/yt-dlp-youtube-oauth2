@@ -50,7 +50,7 @@ class YouTubeOAuth2Handler(InfoExtractor):
     def get_token(self):
         if self._TOKEN_DATA:
             return self._TOKEN_DATA
-        token_data = os.getenv('AUTH_TOKEN')
+        token_data = os.environ.get('AUTH_TOKEN')
         if token_data:
             self._TOKEN_DATA = json.loads(token_data)
         return self._TOKEN_DATA
