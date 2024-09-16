@@ -89,7 +89,8 @@ class TokenManager:
             }
         return None
  
-    '''token_manager.store_token(token_data)
+tkn = TokenManager()
+ '''token_manager.store_token(token_data)
     
     token = token_manager.get_token()'''
 
@@ -103,12 +104,12 @@ class YouTubeOAuth2Handler(InfoExtractor):
 
     def store_token(self, token_data):
         self._TOKEN_DATA = token_data
-        os.environ["AUTH_TOKEN"] = json.dumps(token_data)
+        tkn.store_token(token_data)
 
     def get_token(self):
         token_data = self._TOKEN_DATA
         if not token_data:
-            token_data = os.environ.get("AUTH_TOKEN")
+            token_data = tkn.get_token()
             if token_data:
                 self._TOKEN_DATA = json.loads(token_data)
         return self._TOKEN_DATA
