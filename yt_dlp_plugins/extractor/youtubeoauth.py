@@ -40,18 +40,16 @@ class YouTubeOAuth2Handler(InfoExtractor):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._TOKEN_DATA = None
-
+    
     def store_token(self, token_data, log_new_token=False):
         if log_new_token:
             logging.info(f"Store this token data manually in your environment variable (AUTH_TOKEN): {json.dumps(token_data, indent=4)}")
+        self.cache.store('youtube-oauth2', 'token_data', token_data)
         self._TOKEN_DATA = token_data
 
     def get_token(self):
-        if self._TOKEN_DATA:
-            return self._TOKEN_DATA
         token_data = os.getenv('AUTH_TOKEN')
-        if token_data:
-            self._TOKEN_DATA = json.loads(token_data)
+        self._TOKEN_DATA = self._TOKEN_DATA or self.cache.load('youtube-oauth2', 'token_data') or (json.loads(token_data) if token_data else None)
         return self._TOKEN_DATA
 
     def validate_token_data(self, token_data):
