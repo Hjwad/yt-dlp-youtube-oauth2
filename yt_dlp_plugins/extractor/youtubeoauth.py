@@ -48,9 +48,16 @@ class YouTubeOAuth2Handler(InfoExtractor):
         self._TOKEN_DATA = token_data
 
     def get_token(self):
+        if self._TOKEN_DATA:
+            return self._TOKEN_DATA
+        self._TOKEN_DATA = self.cache.load('youtube-oauth2', 'token_data')
+        if self._TOKEN_DATA:
+            return self._TOKEN_DATA
         token_data = os.getenv('AUTH_TOKEN')
-        self._TOKEN_DATA = self._TOKEN_DATA or self.cache.load('youtube-oauth2', 'token_data') or (json.loads(token_data) if token_data else None)
+        if token_data:
+            self._TOKEN_DATA = json.loads(token_data)
         return self._TOKEN_DATA
+
 
     def validate_token_data(self, token_data):
         return all(key in token_data for key in ('access_token', 'expires', 'refresh_token', 'token_type'))
