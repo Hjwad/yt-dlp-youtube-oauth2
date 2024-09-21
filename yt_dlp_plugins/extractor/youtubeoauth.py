@@ -27,7 +27,7 @@ __VERSION__ = '2024.09.14'
 
 # YouTube TV (TVHTML5)
 _CLIENT_ID = '44774591545-4c5ef4jr2n33nogsihe1tl6rrgo43hp2.apps.googleusercontent.com'
-_CLIENT_SECRET = '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'
+_CLIENT_SECRET = 'aUifL4Xu6PCHACjUfjs3v58m0UtQ'
 _SCOPES = 'http://gdata.youtube.com https://www.googleapis.com/auth/youtube'
 
 class YouTubeOAuth2Handler(InfoExtractor):
